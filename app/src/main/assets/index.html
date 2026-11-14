@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>บันทึกเสียง</title>
+<style>
+:root{
+  --bg:#f6f4ef; --panel:#fffdf9; --ink:#1d1b18; --muted:#6f6a61; --line:#e4dfd5;
+  --accent:#c2410c; --accent-soft:#fdeee5; --chip:#efebe3; --live:#dc2626; --warn:#d97706; --hl:#fff3c4;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#161513; --panel:#1f1d1a; --ink:#ece8e1; --muted:#9c968c; --line:#33302b;
+    --accent:#f97316; --accent-soft:#3a2416; --chip:#2a2723; --warn:#fbbf24; --hl:#3d3418; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{font-family:system-ui,"Noto Sans Thai",sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.6;display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;color:inherit}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
+textarea{min-height:90px;resize:vertical}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:8px 12px;font-size:14px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn:disabled{opacity:.45}
+.icon{border:none;background:none;font-size:20px;padding:6px 8px;border-radius:8px}
+.muted{color:var(--muted);font-size:13px}
+
+header{display:flex;align-items:center;gap:4px;padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:17px;margin:0;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.rec{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.mic{width:64px;height:64px;border-radius:50%;border:none;background:var(--accent);color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.mic.on{background:var(--live);animation:pulse 1.6s infinite}
+.mic:disabled{opacity:.5}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,38,38,.45)}70%{box-shadow:0 0 0 14px rgba(220,38,38,0)}100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}}
+.rec-info{flex:1;min-width:0}
+.rec-state{font-weight:600;font-size:15px}
+.meter{height:5px;background:var(--chip);border-radius:3px;overflow:hidden;margin:6px 0 4px}
+.meter i{display:block;height:100%;width:0;background:var(--accent);transition:width .1s}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{background:var(--chip);border:none;border-radius:999px;padding:2px 10px;font-size:12.5px}
+.chip.off{opacity:.55;text-decoration:line-through}
+.timer{font-variant-numeric:tabular-nums;font-size:22px;font-weight:600}
+
+#transcript{flex:1;overflow:auto;padding:6px 14px 12px}
+.empty{color:var(--muted);text-align:center;padding:48px 12px}
+.line{display:flex;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line);border-radius:6px}
+.line.now{background:var(--hl)}
+.ts{flex:none;width:56px;border:none;background:none;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;text-align:left;padding:3px 0 0}
+.ts.play{color:var(--accent);font-weight:600}
+.txt{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;outline:none}
+.txt:focus{background:var(--accent-soft);border-radius:4px}
+.low .txt{text-decoration:underline dotted var(--warn);text-underline-offset:4px}
+.more{flex:none;border:none;background:none;color:var(--muted);font-size:18px;padding:0 4px}
+.partial .txt{color:var(--muted);font-style:italic}
+
+.player{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);border-top:1px solid var(--line)}
+.player input[type=range]{flex:1;padding:0;accent-color:var(--accent);border:none;background:none}
+.player .t{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
+.actions{display:flex;gap:6px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line);overflow-x:auto}
+.actions .btn{white-space:nowrap;flex:1 0 auto}
+.typebar{display:flex;gap:6px;padding:8px 10px;background:var(--panel);border-top:1px solid var(--line)}
+
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet[hidden]{display:none}
+.sheet .box{background:var(--panel);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:18px 18px 24px;max-height:88vh;overflow:auto}
+.sheet h2{font-size:18px;margin:0 0 6px}
+.sheet label{display:block;font-size:14px;font-weight:600;margin:16px 0 4px}
+.sheet .hint{font-size:12.5px;color:var(--muted);margin-top:4px}
+.sw{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:15px}
+.sw input{width:auto;transform:scale(1.25)}
+.row{display:flex;gap:8px;margin-top:18px}.row .btn{flex:1;padding:11px}
+.alt{display:block;width:100%;text-align:left;margin-top:8px;padding:11px}
+.hist{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.hist .n{flex:1;min-width:0}
+.hist .n b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">🎙️ บันทึกเสียง</h1>
+  <button class="icon" id="histBtn" aria-label="ประวัติ">📁</button>
+  <button class="icon" id="setBtn" aria-label="ตั้งค่า">⚙️</button>
+  <button class="icon" id="newBtn" aria-label="เริ่มใหม่">＋</button>
+</header>
+
+<section class="rec">
+  <button class="mic" id="micBtn" aria-label="เริ่มบันทึก">
+    <svg id="micIcon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
+  </button>
+  <div class="rec-info">
+    <div class="rec-state" id="recState">กดไมค์เพื่อเริ่มบันทึก</div>
+    <div class="meter"><i id="meter"></i></div>
+    <div class="chips">
+      <button class="chip" id="langChip">ภาษาไทย</button>
+      <button class="chip" id="audioChip">🎧 บันทึกเสียง</button>
+      <span class="chip" id="countChip">0 ประโยค</span>
+    </div>
+  </div>
+  <div class="timer" id="timer">00:00</div>
+</section>
+
+<main id="transcript"></main>
+
+<div class="player hidden" id="player">
+  <button class="icon" id="playBtn" aria-label="เล่น">▶️</button>
+  <input type="range" id="seek" min="0" max="1000" value="0">
+  <span class="t" id="ptime">00:00 / 00:00</span>
+</div>
+<form class="typebar hidden" id="typeForm">
+  <input type="text" id="typeIn" placeholder="พิมพ์ข้อความเพิ่ม แล้วกด Enter">
+</form>
+<div class="actions">
+  <button class="btn" id="copyBtn">📋 คัดลอก</button>
+  <button class="btn" id="shareBtn">📤 แชร์ข้อความ</button>
+  <button class="btn" id="saveAudioBtn" disabled>💾 เก็บไฟล์เสียง</button>
+  <button class="btn" id="shareAudioBtn" disabled>🎧 แชร์เสียง</button>
+  <button class="btn" id="typeBtn">⌨️ พิมพ์</button>
+</div>
+
+<!-- settings -->
+<div class="sheet" id="setSheet" hidden><div class="box">
+  <h2>⚙️ ตั้งค่า</h2>
+  <label for="sLang">ภาษาที่พูด</label>
+  <select id="sLang"></select>
+  <div class="sw"><input type="checkbox" id="sAudio"><span>บันทึกเสียงเป็นไฟล์ไปพร้อมกัน</span></div>
+  <div class="hint">ต้องใช้ Android 13 ขึ้นไป · ไฟล์ .m4a ประมาณ 20 MB ต่อชั่วโมง</div>
+  <div class="sw"><input type="checkbox" id="sPunct"><span>ใส่เครื่องหมายวรรคตอนอัตโนมัติ</span></div>
+  <div class="hint">ใช้ได้กับ Android 13 ขึ้นไป บางภาษาอาจไม่รองรับ (ระบบจะปิดให้เองถ้าใช้ไม่ได้)</div>
+  <div class="sw"><input type="checkbox" id="sOffline"><span>ใช้ระบบถอดเสียงแบบออฟไลน์</span></div>
+  <div class="hint">ไม่ต้องใช้เน็ต แต่มักแม่นน้อยกว่า ต้องดาวน์โหลดภาษาไว้ก่อน (ตั้งค่ามือถือ → Google → การรู้จำเสียง)</div>
+
+  <label for="sBias">📌 คำเฉพาะที่ใช้บ่อย (บรรทัดละคำ)</label>
+  <textarea id="sBias" placeholder="ชื่อคน ชื่อบริษัท ศัพท์เทคนิค เช่น&#10;คุณสมชาย&#10;LINE OA&#10;ใบเสนอราคา"></textarea>
+  <div class="hint">ช่วยให้ระบบเลือกคำเหล่านี้เมื่อได้ยินเสียงใกล้เคียง (Android 13 ขึ้นไป)</div>
+
+  <label for="sRepl">🔁 แก้คำผิดอัตโนมัติ (บรรทัดละคู่: คำที่ผิด = คำที่ถูก)</label>
+  <textarea id="sRepl" placeholder="ไลน์โอเอ = LINE OA&#10;สมชัย = สมชาย"></textarea>
+  <div class="hint">ใช้กับทุกประโยคที่ถอดได้ เห็นคำไหนถอดผิดซ้ำๆ ให้เพิ่มไว้ที่นี่</div>
+
+  <div class="row"><button class="btn" data-close>ยกเลิก</button><button class="btn primary" id="sSave">บันทึก</button></div>
+</div></div>
+
+<!-- alternatives -->
+<div class="sheet" id="altSheet" hidden><div class="box">
+  <h2>เลือกคำที่ถูกต้อง</h2>
+  <div class="muted" id="altInfo"></div>
+  <div id="altList"></div>
+  <label for="altRepl" style="margin-top:20px">แก้คำผิดนี้อัตโนมัติครั้งหน้า</label>
+  <div style="display:flex;gap:6px"><input id="altFrom" placeholder="คำที่ผิด"><input id="altTo" placeholder="คำที่ถูก"></div>
+  <div class="row"><button class="btn" data-close>ปิด</button><button class="btn" id="altDel">🗑 ลบประโยค</button><button class="btn primary" id="altAddRepl">เพิ่มคู่คำ</button></div>
+</div></div>
+
+<!-- history -->
+<div class="sheet" id="histSheet" hidden><div class="box">
+  <h2>📁 บันทึกทั้งหมด</h2>
+  <div class="muted">เก็บไว้ในเครื่องนี้ (ถ้าลบแอปหรือล้างข้อมูลแอปจะหายไป — เก็บไฟล์เสียงออกมาไว้ก่อนได้)</div>
+  <div id="histList"></div>
+  <div class="row"><button class="btn" data-close>ปิด</button></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+  const B = window.AndroidBridge || null;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const LANGS = [["th-TH","ไทย"],["ko-KR","เกาหลี"],["en-US","อังกฤษ (US)"],["en-GB","อังกฤษ (UK)"],["ja-JP","ญี่ปุ่น"],["zh-CN","จีนกลาง"],["zh-TW","จีน (ไต้หวัน)"],["vi-VN","เวียดนาม"],["lo-LA","ลาว"],["my-MM","พม่า"],["km-KH","เขมร"],["ms-MY","มลายู"],["id-ID","อินโดนีเซีย"],["fr-FR","ฝรั่งเศส"],["de-DE","เยอรมัน"],["es-ES","สเปน"]];
+  const LOW_CONF = 0.6;
+
+  // ---------------- storage
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } }
+  };
+  let cfg = Object.assign({ lang:"th-TH", audio:true, punct:true, offline:false, bias:"", repl:"" }, store.get("ln.cfg", {}));
+  const sessions = () => store.get("ln.sessions", []);
+  function saveSession(){
+    if (!session.lines.length && !session.segs.length) return;
+    session.elapsed = currentElapsed();
+    const all = sessions().filter(s => s.id !== session.id);
+    all.unshift(session);
+    if (!store.set("ln.sessions", all.slice(0, 200))) toast("พื้นที่เก็บบันทึกเต็ม — ลบบันทึกเก่าบ้าง");
+  }
+
+  // ---------------- state
+  const newSession = () => ({ id: "s" + Date.now().toString(36), created: Date.now(), lines: [], segs: [], elapsed: 0, lang: cfg.lang });
+  let session = newSession();
+  let recording = false, partialEl = null, uttStart = null;
+  let timerStart = 0, elapsedBefore = 0, timerInt = null;
+  const play = { idx: -1, playing: false, poll: null, dragging: false };
+
+  const fmt = ms => { const s = Math.max(0, Math.floor(ms/1000)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+    return (h ? h + ":" + String(m).padStart(2,"0") : String(m).padStart(2,"0")) + ":" + String(x).padStart(2,"0"); };
+  const currentElapsed = () => elapsedBefore + (recording ? Date.now() - timerStart : 0);
+  function toast(msg, long){ const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), long ? 4500 : 2000); }
+  const langName = code => (LANGS.find(l => l[0] === code) || [code, code])[1];
+
+  // ---------------- auto-correct
+  function replPairs(){
+    return cfg.repl.split("\n").map(l => l.split("=")).filter(p => p.length >= 2 && p[0].trim())
+      .map(p => [p[0].trim(), p.slice(1).join("=").trim()]);
+  }
+  function autocorrect(text){
+    let t = text;
+    for (const [a, b] of replPairs()) t = t.split(a).join(b);
+    return t;
+  }
+
+  // ---------------- transcript
+  function renderTranscript(){
+    const box = $("#transcript");
+    box.innerHTML = "";
+    if (!session.lines.length && !partialEl){
+      box.innerHTML = `<div class="empty">ยังไม่มีข้อความ<br>กดไมค์แล้วเริ่มพูดได้เลย<br><br><span class="muted">แตะเวลาหน้าประโยคเพื่อฟังเสียงช่วงนั้น · แตะ ⋯ เพื่อเลือกคำอื่นที่ระบบได้ยิน<br>ประโยคที่ขีดเส้นใต้คือส่วนที่ระบบไม่ค่อยมั่นใจ</span></div>`;
+    }
+    session.lines.forEach((l, i) => box.appendChild(lineEl(l, i)));
+    if (partialEl) box.appendChild(partialEl);
+    updateCounts();
+  }
+  function hasAudioAt(t){ return session.segs.some(s => s.dur > 0 && t >= s.start - 1000 && t < s.start + s.dur); }
+  function lineEl(l, i){
+    const d = document.createElement("div");
+    d.className = "line" + (l.conf >= 0 && l.conf < LOW_CONF ? " low" : "");
+    d.dataset.i = i;
+    const playable = hasAudioAt(l.t);
+    d.innerHTML = `<button class="ts${playable ? " play" : ""}">${playable ? "▶ " : ""}${fmt(l.t)}</button>
+      <span class="txt" contenteditable="true" spellcheck="false">${esc(l.text)}</span>
+      <button class="more" aria-label="ตัวเลือก">⋯</button>`;
+    d.querySelector(".txt").addEventListener("blur", e => {
+      const v = e.target.textContent.trim();
+      const line = session.lines[i]; if (!line) return;
+      if (!v){ session.lines.splice(i, 1); renderTranscript(); }
+      else if (v !== line.text){ (line.alts ||= []).includes(line.text) || line.alts.unshift(line.text); line.text = v; line.conf = -1; d.classList.remove("low"); }
+      saveSession(); updateCounts();
+    });
+    d.querySelector(".ts").addEventListener("click", () => { if (playable) playFrom(l.t); });
+    d.querySelector(".more").addEventListener("click", () => openAlts(i));
+    return d;
+  }
+  function addLine(text, alts, conf, t){
+    const fixed = autocorrect((text || "").trim());
+    if (!fixed) return;
+    const altList = [...new Set([text.trim(), ...(alts || [])].map(a => autocorrect(a.trim())).filter(a => a && a !== fixed))];
+    session.lines.push({ t: Math.round(t), text: fixed, alts: altList, conf: typeof conf === "number" ? conf : -1 });
+    const box = $("#transcript");
+    box.querySelector(".empty")?.remove();
+    const el = lineEl(session.lines.at(-1), session.lines.length - 1);
+    if (partialEl && partialEl.parentNode === box) box.insertBefore(el, partialEl); else box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+    updateCounts();
+    saveSession();
+  }
+  function setPartial(text){
+    const box = $("#transcript");
+    if (!text){ partialEl?.remove(); partialEl = null; return; }
+    if (!partialEl){
+      partialEl = document.createElement("div");
+      partialEl.className = "line partial";
+      partialEl.innerHTML = '<span class="ts">…</span><span class="txt"></span>';
+      box.querySelector(".empty")?.remove();
+      box.appendChild(partialEl);
+    }
+    partialEl.querySelector(".txt").textContent = text;
+    box.scrollTop = box.scrollHeight;
+  }
+  function updateCounts(){
+    $("#countChip").textContent = `${session.lines.length} ประโยค`;
+    const hasAudio = session.segs.some(s => s.dur > 0);
+    $("#saveAudioBtn").disabled = !hasAudio || recording;
+    $("#shareAudioBtn").disabled = !hasAudio || recording;
+  }
+  const transcriptText = () => session.lines.map(l => `[${fmt(l.t)}] ${l.text}`).join("\n");
+  const sessionTitle = s => (s.lines[0]?.text || "บันทึกเสียง").slice(0, 40);
+  const fileName = s => { const d = new Date(s.created); const p = n => String(n).padStart(2,"0");
+    return `บันทึก ${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}.${p(d.getMinutes())}`; };
+
+  // ---------------- alternatives sheet
+  let altIdx = -1;
+  function openAlts(i){
+    altIdx = i;
+    const l = session.lines[i];
+    $("#altInfo").textContent = l.conf >= 0 ? `ความมั่นใจของระบบ: ${Math.round(l.conf * 100)}%` : "";
+    $("#altList").innerHTML = `<div class="muted" style="margin-top:10px">ข้อความตอนนี้</div><div style="font-weight:600">${esc(l.text)}</div>` +
+      (l.alts?.length ? `<div class="muted" style="margin-top:14px">ระบบยังได้ยินเป็นแบบนี้ได้ด้วย — แตะเพื่อใช้แทน</div>` +
+        l.alts.map((a, k) => `<button class="btn alt" data-k="${k}">${esc(a)}</button>`).join("")
+        : `<div class="muted" style="margin-top:14px">ไม่มีตัวเลือกอื่น — แตะที่ข้อความในรายการเพื่อแก้เองได้</div>`);
+    $("#altFrom").value = ""; $("#altTo").value = "";
+    openSheet("#altSheet");
+  }
+  $("#altList").addEventListener("click", e => {
+    const k = e.target.dataset.k; if (k == null) return;
+    const l = session.lines[altIdx];
+    const chosen = l.alts[k];
+    l.alts[k] = l.text; l.text = chosen; l.conf = -1;
+    saveSession(); renderTranscript(); closeSheets();
+  });
+  $("#altDel").addEventListener("click", () => {
+    session.lines.splice(altIdx, 1); saveSession(); renderTranscript(); closeSheets();
+  });
+  $("#altAddRepl").addEventListener("click", () => {
+    const a = $("#altFrom").value.trim(), b = $("#altTo").value.trim();
+    if (!a){ toast("ใส่คำที่ผิดก่อน"); return; }
+    cfg.repl = (cfg.repl.trim() ? cfg.repl.trim() + "\n" : "") + `${a} = ${b}`;
+    store.set("ln.cfg", cfg);
+    session.lines.forEach(l => l.text = l.text.split(a).join(b));
+    saveSession(); renderTranscript(); closeSheets();
+    toast("เพิ่มคู่คำแล้ว และแก้ในบันทึกนี้ให้แล้ว");
+  });
+
+  // ---------------- sheets
+  function openSheet(id){ document.querySelectorAll(".sheet").forEach(s => s.hidden = true); $(id).hidden = false; }
+  function closeSheets(){ document.querySelectorAll(".sheet").forEach(s => s.hidden = true); }
+  document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e => { if (e.target === s || e.target.hasAttribute("data-close")) closeSheets(); }));
+
+  // ---------------- settings
+  $("#sLang").innerHTML = LANGS.map(l => `<option value="${l[0]}">${l[1]}</option>`).join("");
+  function openSettings(){
+    $("#sLang").value = cfg.lang; $("#sAudio").checked = cfg.audio; $("#sPunct").checked = cfg.punct;
+    $("#sOffline").checked = cfg.offline; $("#sBias").value = cfg.bias; $("#sRepl").value = cfg.repl;
+    openSheet("#setSheet");
+  }
+  $("#sSave").addEventListener("click", () => {
+    cfg = { lang: $("#sLang").value, audio: $("#sAudio").checked, punct: $("#sPunct").checked, offline: $("#sOffline").checked,
+            bias: $("#sBias").value, repl: $("#sRepl").value };
+    store.set("ln.cfg", cfg); renderChips(); closeSheets(); toast("บันทึกการตั้งค่าแล้ว");
+  });
+  $("#setBtn").addEventListener("click", openSettings);
+  $("#langChip").addEventListener("click", openSettings);
+  $("#audioChip").addEventListener("click", () => {
+    if (recording){ toast("หยุดบันทึกก่อนแล้วค่อยเปลี่ยน"); return; }
+    cfg.audio = !cfg.audio; store.set("ln.cfg", cfg); renderChips();
+    toast(cfg.audio ? "เปิดการบันทึกเสียงเป็นไฟล์" : "ปิดการบันทึกเสียง (ถอดข้อความอย่างเดียว)");
+  });
+  function renderChips(){
+    $("#langChip").textContent = "🗣 " + langName(cfg.lang);
+    $("#audioChip").classList.toggle("off", !cfg.audio);
+  }
+
+  // ---------------- recording
+  function setRecUI(on, msg){
+    recording = on;
+    $("#micBtn").classList.toggle("on", on);
+    $("#micIcon").innerHTML = on
+      ? '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>'
+      : '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/>';
+    if (msg !== undefined) $("#recState").textContent = msg;
+    if (!on) $("#meter").style.width = "0";
+    updateCounts();
+  }
+  function startTimer(){ timerStart = Date.now(); clearInterval(timerInt); timerInt = setInterval(() => $("#timer").textContent = fmt(currentElapsed()), 500); }
+  function stopTimer(){ elapsedBefore += Date.now() - timerStart; clearInterval(timerInt); $("#timer").textContent = fmt(elapsedBefore); }
+
+  const REASONS = {
+    stopped: "หยุดแล้ว — กดไมค์เพื่อบันทึกต่อ",
+    hidden: "หยุดเพราะออกจากแอป — กดไมค์เพื่อบันทึกต่อ",
+    not_granted: "ไม่ได้รับอนุญาตให้ใช้ไมโครโฟน (ตั้งค่ามือถือ → แอป → สิทธิ์)",
+    unavailable: "เครื่องนี้ไม่มีระบบแปลงเสียงเป็นข้อความ — ติดตั้ง/อัปเดตแอป Google",
+    network: "การเชื่อมต่อมีปัญหา — ตรวจเน็ตแล้วกดไมค์อีกครั้ง",
+    lang: "ระบบยังไม่รองรับภาษานี้ในเครื่องนี้ — ลองเปลี่ยนภาษาหรือปิดโหมดออฟไลน์",
+    error: "ระบบถอดเสียงขัดข้อง — กดไมค์อีกครั้ง"
+  };
+
+  $("#micBtn").addEventListener("click", () => {
+    if (!B){ toast("เปิดในแอป Android เพื่อใช้ไมค์"); return; }
+    if (recording){ B.stopRec(); return; }
+    stopPlayback();
+    const bias = cfg.bias.split("\n").map(s => s.trim()).filter(Boolean);
+    replPairs().forEach(([, b]) => b && bias.push(b));
+    const file = `${session.id}_${session.segs.length + 1}.m4a`;
+    $("#recState").textContent = "กำลังเริ่ม…";
+    B.startRec(JSON.stringify({ lang: cfg.lang, audio: cfg.audio, punct: cfg.punct, offline: cfg.offline, bias: [...new Set(bias)], file }));
+  });
+
+  // events from Android
+  function onNative(o){
+    switch (o.type){
+      case "state":
+        if (o.state === "listening"){
+          if (!recording){ setRecUI(true, o.mode === "audio" ? "🔴 กำลังฟังและบันทึกเสียง…" : "🔴 กำลังฟัง… (ไม่บันทึกเสียง)"); startTimer(); }
+          session.lang = cfg.lang;
+        } else {
+          if (recording) stopTimer();
+          setPartial(""); uttStart = null;
+          setRecUI(false, REASONS[o.reason] || REASONS.stopped);
+          saveSession();
+        }
+        break;
+      case "partial":
+        if (o.text && uttStart == null) uttStart = Math.max(0, currentElapsed() - 800);
+        setPartial(o.text);
+        break;
+      case "final":
+        setPartial("");
+        addLine(o.text, o.alts, o.conf, uttStart ?? Math.max(0, currentElapsed() - 1500));
+        uttStart = null;
+        break;
+      case "level":
+        $("#meter").style.width = Math.round(o.v * 100) + "%";
+        break;
+      case "segment":
+        if (o.phase === "start"){
+          session.segs.push({ file: o.file, start: currentElapsed(), dur: 0 });
+        } else {
+          const s = session.segs.find(x => x.file === o.file);
+          if (s){ if (o.dur > 0) s.dur = o.dur; else session.segs.splice(session.segs.indexOf(s), 1); }
+          saveSession(); renderTranscript(); renderPlayer();
+        }
+        break;
+      case "notice":
+        toast(o.text, true);
+        if (recording) $("#recState").textContent = "🔴 กำลังฟัง… (ไม่บันทึกเสียง)";
+        break;
+      case "ended": onEnded(o); break;
+      case "paused": stopPoll(); play.playing = false; $("#playBtn").textContent = "▶️"; break;
+      case "export":
+        toast(o.msg, true);
+        $("#saveAudioBtn").disabled = $("#shareAudioBtn").disabled = false;
+        break;
+    }
+  }
+  window.__native = {
+    ev: o => { try { onNative(o); } catch (e) { console.error(e); } },
+    back: () => {
+      const open = [...document.querySelectorAll(".sheet")].some(s => !s.hidden);
+      if (open) closeSheets(); else if (B) B.exit();
+    }
+  };
+
+  // ---------------- playback
+  const segsWithAudio = () => session.segs.filter(s => s.dur > 0);
+  const totalDur = () => segsWithAudio().reduce((m, s) => Math.max(m, s.start + s.dur), 0);
+  function renderPlayer(){
+    const has = segsWithAudio().length > 0;
+    $("#player").classList.toggle("hidden", !has);
+    if (has && !play.playing) updatePlayerUI(play.idx >= 0 ? null : 0);
+  }
+  function updatePlayerUI(tl){
+    const tot = totalDur();
+    if (tl == null) tl = +$("#seek").value / 1000 * tot;
+    if (!play.dragging) $("#seek").value = tot ? Math.round(tl / tot * 1000) : 0;
+    $("#ptime").textContent = `${fmt(tl)} / ${fmt(tot)}`;
+    // highlight line being spoken
+    let cur = -1;
+    session.lines.forEach((l, i) => { if (l.t <= tl + 300) cur = i; });
+    document.querySelectorAll(".line.now").forEach(e => e.classList.remove("now"));
+    if (play.playing && cur >= 0){
+      const el = $(`.line[data-i="${cur}"]`);
+      if (el){ el.classList.add("now"); const box = $("#transcript"); const r = el.offsetTop - box.offsetTop;
+        if (r < box.scrollTop || r > box.scrollTop + box.clientHeight - 60) box.scrollTop = r - 80; }
+    }
+  }
+  function playFrom(t){
+    if (!B || recording) return;
+    const segs = segsWithAudio();
+    let i = segs.findIndex(s => t >= s.start && t < s.start + s.dur);
+    if (i < 0) i = segs.findIndex(s => s.start >= t);
+    if (i < 0){ toast("ช่วงนี้ไม่มีเสียงที่บันทึกไว้"); return; }
+    const seg = segs[i];
+    const off = Math.max(0, Math.min(seg.dur - 50, t - seg.start - 300));
+    play.idx = i; play.playing = true;
+    B.play(seg.file, Math.round(off));
+    $("#playBtn").textContent = "⏸";
+    startPoll();
+  }
+  function startPoll(){
+    stopPoll();
+    play.poll = setInterval(() => {
+      const seg = segsWithAudio()[play.idx]; if (!seg) return;
+      const pos = B.position();
+      if (pos >= 0) updatePlayerUI(seg.start + pos);
+    }, 250);
+  }
+  function stopPoll(){ clearInterval(play.poll); play.poll = null; }
+  function onEnded(o){
+    const segs = segsWithAudio();
+    if (o.error) toast("เปิดไฟล์เสียงไม่ได้");
+    if (play.playing && !o.error && play.idx + 1 < segs.length){
+      play.idx++; B.play(segs[play.idx].file, 0); return;
+    }
+    stopPlayback(true);
+  }
+  function stopPlayback(ended){
+    if (!play.playing) return;
+    play.playing = false; stopPoll();
+    if (B && !ended) B.stopPlay();
+    $("#playBtn").textContent = "▶️";
+    document.querySelectorAll(".line.now").forEach(e => e.classList.remove("now"));
+  }
+  $("#playBtn").addEventListener("click", () => {
+    if (play.playing){ B.pause(); play.playing = false; stopPoll(); $("#playBtn").textContent = "▶️"; return; }
+    const tl = +$("#seek").value / 1000 * totalDur();
+    playFrom(tl >= totalDur() - 200 ? 0 : tl);
+  });
+  $("#seek").addEventListener("input", () => { play.dragging = true; const tl = +$("#seek").value / 1000 * totalDur(); $("#ptime").textContent = `${fmt(tl)} / ${fmt(totalDur())}`; });
+  $("#seek").addEventListener("change", () => {
+    play.dragging = false;
+    const tl = +$("#seek").value / 1000 * totalDur();
+    if (play.playing) playFrom(tl); else updatePlayerUI(tl);
+  });
+
+  // ---------------- actions
+  $("#copyBtn").addEventListener("click", () => {
+    if (!session.lines.length){ toast("ยังไม่มีข้อความ"); return; }
+    if (B) B.copy(transcriptText()); else navigator.clipboard?.writeText(transcriptText());
+    toast("คัดลอกแล้ว");
+  });
+  $("#shareBtn").addEventListener("click", () => {
+    if (!session.lines.length){ toast("ยังไม่มีข้อความ"); return; }
+    B ? B.shareText(transcriptText()) : toast("แชร์ได้ในแอป Android");
+  });
+  function exportAudio(share){
+    if (!B) return;
+    const files = segsWithAudio().map(s => s.file);
+    if (!files.length) return;
+    $("#saveAudioBtn").disabled = $("#shareAudioBtn").disabled = true;
+    toast("กำลังเตรียมไฟล์เสียง…");
+    B.exportAudio(JSON.stringify(files), fileName(session), share, share ? transcriptText().slice(0, 3000) : "");
+  }
+  $("#saveAudioBtn").addEventListener("click", () => exportAudio(false));
+  $("#shareAudioBtn").addEventListener("click", () => exportAudio(true));
+  $("#typeBtn").addEventListener("click", () => { $("#typeForm").classList.toggle("hidden"); if (!$("#typeForm").classList.contains("hidden")) $("#typeIn").focus(); });
+  $("#typeForm").addEventListener("submit", e => { e.preventDefault(); const v = $("#typeIn").value.trim(); if (v){ addLine(v, [], -1, currentElapsed()); $("#typeIn").value = ""; } });
+
+  // ---------------- history
+  function renderHistory(){
+    const all = sessions();
+    $("#histList").innerHTML = all.length ? all.map(s => {
+      const audio = (s.segs || []).filter(x => x.dur > 0).reduce((a, x) => a + x.dur, 0);
+      return `<div class="hist"><div class="n"><b>${esc(sessionTitle(s))}</b>
+        <span class="muted">${new Date(s.created).toLocaleString("th-TH")} · ${s.lines.length} ประโยค${audio ? " · 🎧 " + fmt(audio) : ""}${s.id === session.id ? " · (เปิดอยู่)" : ""}</span></div>
+        <button class="btn" data-open="${s.id}">เปิด</button><button class="btn" data-del="${s.id}">ลบ</button></div>`;
+    }).join("") : '<p class="muted">ยังไม่มีบันทึก</p>';
+  }
+  $("#histBtn").addEventListener("click", () => { if (recording){ toast("หยุดบันทึกก่อน"); return; } saveSession(); renderHistory(); openSheet("#histSheet"); });
+  $("#histList").addEventListener("click", e => {
+    const o = e.target.dataset.open, d = e.target.dataset.del;
+    if (o){ const s = sessions().find(x => x.id === o); if (s){ loadSession(s); closeSheets(); } }
+    if (d){
+      if (!e.target.dataset.sure){ e.target.dataset.sure = "1"; e.target.textContent = "ยืนยันลบ?"; return; }
+      const s = sessions().find(x => x.id === d);
+      if (s && B) B.deleteFiles(JSON.stringify((s.segs || []).map(x => x.file)));
+      store.set("ln.sessions", sessions().filter(x => x.id !== d));
+      if (d === session.id) loadSession(newSession());
+      renderHistory();
+    }
+  });
+  function loadSession(s){
+    stopPlayback();
+    session = Object.assign({ segs: [], lines: [] }, s);
+    elapsedBefore = s.elapsed || 0;
+    $("#timer").textContent = fmt(elapsedBefore);
+    partialEl = null; uttStart = null; play.idx = -1;
+    $("#recState").textContent = session.lines.length ? "กดไมค์เพื่อบันทึกต่อ" : "กดไมค์เพื่อเริ่มบันทึก";
+    renderTranscript(); renderPlayer();
+  }
+  $("#newBtn").addEventListener("click", () => {
+    if (recording){ toast("หยุดบันทึกก่อน"); return; }
+    saveSession(); loadSession(newSession()); toast("เริ่มบันทึกใหม่");
+  });
+
+  // ---------------- start
+  renderChips();
+  if (!B) $("#recState").textContent = "ตัวอย่างหน้าจอ — ไมค์ใช้ได้ในแอป Android";
+  else if (!B.hasSpeech()){ $("#recState").textContent = REASONS.unavailable; }
+  if (B && B.sdk() < 33 && cfg.audio) $("#audioChip").title = "Android ต่ำกว่า 13 บันทึกเสียงพร้อมถอดข้อความไม่ได้";
+  const last = sessions()[0];
+  if (last && Date.now() - last.created < 3 * 3600 * 1000) loadSession(last); else renderTranscript();
+  window.addEventListener("beforeunload", saveSession);
+})();
+</script>
+</body>
+</html>
